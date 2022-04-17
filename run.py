@@ -1,10 +1,9 @@
 # 创建应用实例
 import hashlib
 import sys
+from flask import request, Flask
 
-from flask import request
-from wxcloudrun import app
-
+app = Flask(__name__)
 
 @app.route('/wechat')
 def wechat():
