@@ -1,39 +1,13 @@
-import hashlib
 from datetime import datetime
 from flask import render_template, request
 from run import app
 from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid
 from wxcloudrun.model import Counters
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
+from utils import check_token
+import xml.etree.cElementTree as et
+import time
 
-
-@app.route('/wechat')
-def wechat():
-
-    # 1、 获取携带的 signature、timestamp、nonce、echostr
-    signature = request.args.get("signature", "")
-    timestamp = request.args.get("timestamp", "")
-    nonce = request.args.get("nonce", "")
-    echostr = request.args.get("echostr", "")
-    print(signature, timestamp, nonce, echostr)
-
-    token = "clown1988"
-
-    # 2、 进行字典排序
-    data = [token, timestamp, nonce]
-    data.sort()
-
-    # 3、三个参数拼接成一个字符串并进行sha1加密
-    temp = ''.join(data)
-    sha1 = hashlib.sha1(temp.encode('utf-8'))
-    hashcode = sha1.hexdigest()
-    print(hashcode)
-
-    # 4、对比获取到的signature与根据上面token生成的hashcode，如果一致，则返回echostr，对接成功
-    if hashcode == signature:
-        return echostr
-    else:
-        return "error"
 
 @app.route('/')
 def index():
@@ -93,3 +67,24 @@ def get_count():
     """
     counter = Counters.query.filter(Counters.id == 1).first()
     return make_succ_response(0) if counter is None else make_succ_response(counter.count)
+
+
+@app.route('/wechat', method=['GET', 'POST'])
+def wechat():
+    if request.method == 'GET':
+        return check_token(request)
+    else:
+        xml_data = et.fromstring(request.stream.read())
+        msg_type = xml_data.find('MsgType').text
+        if msg_type == 'text':
+            to_user_name = xml_data.find('ToUserName').text
+            from_user_name = xml_data.find('FromUserName').text
+            content = xml_data.find('Content').text
+            reply = '''<xml>
+                    <ToUserName><![CDATA[%s]]></ToUserName>
+                    <FromUserName><![CDATA[%s]]></FromUserName>
+                    <CreateTime>%s</CreateTime>
+                    <MsgType><![CDATA[text]]></MsgType>
+                    <Content><![CDATA[%s]]></Content>
+                    </xml>'''
+            return make_succ_response(reply % (from_user_name, to_user_name, str(int(time.time())), content))
